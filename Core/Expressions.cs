@@ -20,10 +20,37 @@ public static class Expressions
     public static double Evaluate(string text)
     {
         var stack = new LinkedStack<double>();
-        foreach (var raw in text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)) { var t = raw.ToLowerInvariant(); if (double.TryParse(t.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double number)) { if (!double.IsFinite(number)) throw new FormatException("Число должно быть конечным."); stack.Push(number); continue; }
-            if (t is "ln" or "cos" or "sin" or "sqrt" or "neg") { double x = stack.Pop(); double v = t switch { "ln" when x > 0 => Math.Log(x), "sqrt" when x >= 0 => Math.Sqrt(x), "cos" => Math.Cos(x), "sin" => Math.Sin(x), "neg" => -x, _ => throw new ArithmeticException("Аргумент вне области определения функции.") }; stack.Push(v); continue; }
-            if (t is not ("+" or "-" or "*" or "/" or ":" or "^")) throw new FormatException($"Неизвестная операция: {raw}"); double b = stack.Pop(), a = stack.Pop(); double result = t switch { "+" => a + b, "-" => a - b, "*" => a * b, "/" or ":" when b != 0 => a / b, "/" or ":" => throw new DivideByZeroException(), _ => Math.Pow(a, b) }; if (!double.IsFinite(result)) throw new ArithmeticException("Результат не является конечным числом."); stack.Push(result);
+        foreach (var raw in text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)) { 
+            var t = raw.ToLowerInvariant(); 
+            if (double.TryParse(t.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double number)) { 
+                if (!double.IsFinite(number)) throw new FormatException("Число должно быть конечным."); 
+                stack.Push(number); 
+                continue; 
+            }
+            if (t is "ln" or "cos" or "sin" or "sqrt" or "neg") { 
+                double x = stack.Pop(); 
+                double v = t switch { 
+                    "ln" when x > 0 => Math.Log(x), 
+                    "sqrt" when x >= 0 => Math.Sqrt(x), 
+                    "cos" => Math.Cos(x), "sin" => Math.Sin(x), 
+                    "neg" => -x, _ => throw new ArithmeticException("Аргумент вне области определения функции.") 
+                }; 
+                stack.Push(v); 
+                continue; 
+            }
+            if (t is not ("+" or "-" or "*" or "/" or ":" or "^")) throw new FormatException($"Неизвестная операция: {raw}");
+            double b = stack.Pop(), a = stack.Pop(); 
+            double result = t switch { 
+                "+" => a + b, 
+                "-" => a - b, 
+                "*" => a * b, 
+                "/" or ":" when b != 0 => a / b, 
+                "/" or ":" => throw new DivideByZeroException(), _ => Math.Pow(a, b) 
+            }; 
+            if (!double.IsFinite(result)) throw new ArithmeticException("Результат не является конечным числом."); 
+            stack.Push(result);
         }
-        if (stack.Count != 1) throw new FormatException("Выражение должно оставлять ровно один результат."); return stack.Pop();
+        if (stack.Count != 1) throw new FormatException("Выражение должно оставлять ровно один результат."); 
+        return stack.Pop();
     }
 }
