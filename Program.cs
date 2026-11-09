@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using AlgorithmsLab3.Applications;
 using AlgorithmsLab3.Core;
+using AlgorithmsLab3.UI;
 
 namespace AlgorithmsLab3;
 
@@ -167,14 +168,21 @@ public static class Program
                     double result = Expressions.Evaluate(expr, out var steps);
 
                     Console.WriteLine("  Пошаговая работа стека (воспроизводит рисунок 1 из ТЗ):");
-                    Console.WriteLine("  ┌──────┬────────────┬──────────────────────────────────────┬──────────────────────────────┐");
-                    Console.WriteLine("  │ Шаг  │ Токен      │ Действие                             │ Содержимое стека             │");
-                    Console.WriteLine("  ├──────┼────────────┼──────────────────────────────────────┼──────────────────────────────┤");
+                    var evalTable = new ConsoleTable(
+                        new[] { "Шаг", "Токен", "Действие", "Содержимое стека" },
+                        ColumnAlignment.Right,
+                        ColumnAlignment.Left,
+                        ColumnAlignment.Left,
+                        ColumnAlignment.Left);
                     foreach (var s in steps)
                     {
-                        Console.WriteLine($"  │ {s.StepNumber,4} │ {s.Token,-10} │ {s.Action,-36} │ {s.StackState,-28} │");
+                        evalTable.AddRow(
+                            s.StepNumber.ToString(),
+                            s.Token,
+                            s.Action,
+                            s.StackState);
                     }
-                    Console.WriteLine("  └──────┴────────────┴──────────────────────────────────────┴──────────────────────────────┘");
+                    Console.WriteLine(evalTable.Render());
 
                     Console.ForegroundColor = ConsoleColor.Green;
                     Console.WriteLine($"\n  Итоговый результат: {result:G17}");
@@ -191,14 +199,23 @@ public static class Program
                     string postfix = Expressions.ToPostfix(infix, out var steps);
 
                     Console.WriteLine("\n  Пошаговая работа сортировочной станции (Shunting-Yard на LinkedStack):");
-                    Console.WriteLine("  ┌──────┬────────────┬──────────────────────────────────────────┬────────────────────┬──────────────────────────────┐");
-                    Console.WriteLine("  │ Шаг  │ Токен      │ Действие                                 │ Стек операторов    │ Выходной поток               │");
-                    Console.WriteLine("  ├──────┼────────────┼──────────────────────────────────────────┼────────────────────┼──────────────────────────────┤");
+                    var shuntTable = new ConsoleTable(
+                        new[] { "Шаг", "Токен", "Действие", "Стек операторов", "Выходной поток" },
+                        ColumnAlignment.Right,
+                        ColumnAlignment.Left,
+                        ColumnAlignment.Left,
+                        ColumnAlignment.Left,
+                        ColumnAlignment.Left);
                     foreach (var s in steps)
                     {
-                        Console.WriteLine($"  │ {s.StepNumber,4} │ {s.Token,-10} │ {s.Action,-40} │ {s.StackState,-18} │ {s.OutputState,-28} │");
+                        shuntTable.AddRow(
+                            s.StepNumber.ToString(),
+                            s.Token,
+                            s.Action,
+                            s.StackState,
+                            s.OutputState);
                     }
-                    Console.WriteLine("  └──────┴────────────┴──────────────────────────────────────────┴────────────────────┴──────────────────────────────┘");
+                    Console.WriteLine(shuntTable.Render());
 
                     Console.ForegroundColor = ConsoleColor.Yellow;
                     Console.WriteLine($"\n  Постфиксная запись: {postfix}");
@@ -352,14 +369,15 @@ public static class Program
 
                     var codes = HuffmanTree.BuildCodes(text);
                     Console.WriteLine($"\n  Коды Хаффмана для текста \"{text}\":");
-                    Console.WriteLine("  ┌────────┬────────────────┐");
-                    Console.WriteLine("  │ Символ │ Код Хаффмана   │");
-                    Console.WriteLine("  ├────────┼────────────────┤");
+                    var huffmanTable = new ConsoleTable(
+                        new[] { "Символ", "Код Хаффмана" },
+                        ColumnAlignment.Center,
+                        ColumnAlignment.Left);
                     foreach (var (ch, code) in codes.OrderBy(kv => kv.Key))
                     {
-                        Console.WriteLine($"  │   '{ch}'  │ {code,-14} │");
+                        huffmanTable.AddRow($"'{ch}'", code);
                     }
-                    Console.WriteLine("  └────────┴────────────────┘");
+                    Console.WriteLine(huffmanTable.Render());
 
                     var encoded = string.Concat(text.Select(c => codes[c]));
                     Console.ForegroundColor = ConsoleColor.Green;
@@ -626,16 +644,7 @@ public static class Program
     // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ UI
     // =========================================================================
 
-    private static void PrintHeader(string title)
-    {
-        Console.WriteLine();
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("  ╔═══════════════════════════════════════════════════════════════════════╗");
-        Console.WriteLine($"  ║  {title,-68} ║");
-        Console.WriteLine("  ╚═══════════════════════════════════════════════════════════════════════╝");
-        Console.ResetColor();
-        Console.WriteLine();
-    }
+    private static void PrintHeader(string title) => UiLayout.PrintHeader(title);
 
     private static string Prompt(string message)
     {

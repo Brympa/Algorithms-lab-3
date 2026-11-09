@@ -1,4 +1,5 @@
 using System.Text;
+using AlgorithmsLab3.UI;
 
 namespace AlgorithmsLab3.Core;
 
@@ -53,6 +54,12 @@ public sealed class BinaryTree<T>
 
         int index = 0;
         BinaryTreeNode<char>? root = ParsePreorder(preorderString, ref index, nullMarker);
+
+        if (index != preorderString.Length)
+        {
+            throw new FormatException(
+                $"Лишние символы после конца дерева в позиции {index + 1}: '{preorderString[index..]}'.");
+        }
 
         return new BinaryTree<char>(root);
     }
@@ -204,7 +211,7 @@ public sealed class BinaryTree<T>
         }
 
         var sb = new StringBuilder();
-        BuildBranch(Root, "", isLast: true, sb, label: "Root", showNulls: showNulls);
+        BuildBranch(Root, "  ", isLast: true, sb, label: "Root", showNulls: showNulls);
         return sb.ToString();
 
         static void BuildBranch(BinaryTreeNode<T>? node, string indent, bool isLast, StringBuilder sb, string label, bool showNulls)
@@ -228,12 +235,12 @@ public sealed class BinaryTree<T>
             bool hasLeft = node.Left != null;
             bool hasRight = node.Right != null;
 
-            if (hasLeft || (showNulls && hasRight))
+            if (hasLeft || showNulls)
             {
                 BuildBranch(node.Left, childIndent, isLast: !hasRight && !showNulls, sb, "L", showNulls);
             }
 
-            if (hasRight || (showNulls && hasLeft))
+            if (hasRight || showNulls)
             {
                 BuildBranch(node.Right, childIndent, isLast: true, sb, "R", showNulls);
             }
@@ -250,10 +257,11 @@ public sealed class BinaryTree<T>
             return "  Дерево пусто.";
         }
 
-        var sb = new StringBuilder();
-        sb.AppendLine("  ┌──────┬──────────────┬──────────────┐");
-        sb.AppendLine("  │ Узел │ Левый (Left) │ Правый(Right)│");
-        sb.AppendLine("  ├──────┼──────────────┼──────────────┤");
+        var table = new ConsoleTable(
+            new[] { "Узел", "Левый (Left)", "Правый (Right)" },
+            ColumnAlignment.Center,
+            ColumnAlignment.Center,
+            ColumnAlignment.Center);
 
         var queue = new LinkedLabQueue<BinaryTreeNode<T>>();
         queue.Enqueue(Root);
@@ -265,13 +273,12 @@ public sealed class BinaryTree<T>
             string left = node.Left != null ? node.Left.Value?.ToString() ?? "" : "NULL";
             string right = node.Right != null ? node.Right.Value?.ToString() ?? "" : "NULL";
 
-            sb.AppendLine($"  │  {val,-3} │ {left,-12} │ {right,-12} │");
+            table.AddRow(val, left, right);
 
             if (node.Left != null) queue.Enqueue(node.Left);
             if (node.Right != null) queue.Enqueue(node.Right);
         }
 
-        sb.AppendLine("  └──────┴──────────────┴──────────────┘");
-        return sb.ToString();
+        return table.Render();
     }
 }

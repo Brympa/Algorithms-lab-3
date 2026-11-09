@@ -1,5 +1,6 @@
 using AlgorithmsLab3.Applications;
 using AlgorithmsLab3.Core;
+using AlgorithmsLab3.UI;
 
 namespace AlgorithmsLab3;
 
@@ -11,11 +12,7 @@ public static class SelfTest
 {
     public static void Run()
     {
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("\n  ╔═══════════════════════════════════════════════════════════════════════╗");
-        Console.WriteLine("  ║                   САМОПРОВЕРКА КОМПОНЕНТОВ (SELF-TEST)                ║");
-        Console.WriteLine("  ╚═══════════════════════════════════════════════════════════════════════╝\n");
-        Console.ResetColor();
+        UiLayout.PrintHeader("САМОПРОВЕРКА КОМПОНЕНТОВ (SELF-TEST)");
 
         int passed = 0;
         int failed = 0;
@@ -113,6 +110,45 @@ public static class SelfTest
         swapList.SwapNodesByIndices(1, 2); // обмен соседних
         Assert(ListEquals(swapList, 40, 30, 20, 10), "12b. Обмен узлов списка указателями (SwapNodesByIndices: соседние)");
 
+        // Исчерпывающая проверка всех пар индексов: значения и хвост списка
+        bool allSwapsOk = true;
+        string failedSwap = "";
+        for (int i = 0; i < 5 && allSwapsOk; i++)
+        {
+            for (int j = 0; j < 5 && allSwapsOk; j++)
+            {
+                var testSwap = LinkedSequence<int>.From(new[] { 1, 2, 3, 4, 5 });
+                testSwap.SwapNodesByIndices(i, j);
+
+                int[] expected = { 1, 2, 3, 4, 5 };
+                (expected[i], expected[j]) = (expected[j], expected[i]);
+                // Примечание: это стандартная перестановка двух элементов массива.
+
+                if (!testSwap.Values().SequenceEqual(expected) || testSwap.Tail?.Value != expected[^1])
+                {
+                    allSwapsOk = false;
+                    failedSwap = $"пара ({i}, {j}): получено [{string.Join(", ", testSwap.Values())}], хвост {testSwap.Tail?.Value}";
+                }
+            }
+        }
+        Assert(allSwapsOk, "12c. Перелинковка всех пар узлов (включая соседние и крайние)", failedSwap);
+
+        var swapByValue = LinkedSequence<int>.From(new[] { 10, 20, 30, 40 });
+        swapByValue.SwapNodesByValues(20, 30);
+        Assert(ListEquals(swapByValue, 10, 30, 20, 40), "12d. Обмен узлов по значениям (SwapNodesByValues)");
+
+        // Граничные случаи: пустой список и отсутствующее значение
+        var emptyList = new LinkedSequence<int>();
+        emptyList.DuplicateSelf();
+        Assert(emptyList.IsEmpty && emptyList.DistinctCount() == 0, "Граничный случай: операции над пустым списком");
+
+        Assert(!emptyList.InsertCopyAfter(1), "Граничный случай: InsertCopyAfter для отсутствующего X");
+
+        var splitSource = LinkedSequence<int>.From(new[] { 1, 2, 3 });
+        var splitMissing = splitSource.SplitAfter(99);
+        Assert(splitMissing.IsEmpty && ListEquals(splitSource, 1, 2, 3),
+            "Граничный случай: SplitAfter при отсутствии X не меняет первый список");
+
         // =====================================================================
         // 2. ТЕСТЫ СТЕКА И ОЧЕРЕДИ (ЧАСТИ 1 И 2)
         // =====================================================================
@@ -191,11 +227,11 @@ public static class SelfTest
 
         // Проверка обратного обхода (Post-order, LRN)
         string postOrder = string.Join("", tree.PostOrder());
-        Assert(postOrder == "GDBEHJFFCA" || postOrder == "GDBEHJFCA", $"Обратный обход: {postOrder}");
+        Assert(postOrder == "GDBEHJFCA", $"Обратный обход: {postOrder} (ожидалось GDBEHJFCA)");
 
         // Проверка обхода в ширину (Level-order / BFS с очередью)
         string levelOrder = string.Join("", tree.LevelOrder());
-        Assert(levelOrder == "ABCDEFGHIJ" || levelOrder == "ABCDEFGHJ", $"Обход в ширину: {levelOrder}");
+        Assert(levelOrder == "ABCDEFGHJ", $"Обход в ширину: {levelOrder} (ожидалось ABCDEFGHJ)");
 
         // Обратная сериализация в строку с '*'
         string roundTrip = tree.ToPreorderString();

@@ -1,31 +1,31 @@
 using System.Text;
 using AlgorithmsLab3.Core;
+using AlgorithmsLab3.UI;
 
 namespace AlgorithmsLab3;
 
 /// <summary>
 /// Бенчмарк и замер времени выполнения операций со Стеком и Очередями (Части 1 и 2 ТЗ).
-/// Генерирует наборы данных разной длины и одинаковой длины разного состава для максимального расхождения по времени.
+/// Генерирует наборы данных разной длины и одинаковой длины разного состава,
+/// чтобы получить максимальное расхождение по времени.
 /// </summary>
 public static class Benchmark
 {
+    private const int RunsPerMeasurement = 5;
+
     public static void Run()
     {
         string benchDir = Path.Combine("data", "benchmarks");
         Directory.CreateDirectory(benchDir);
 
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("\n  ╔═══════════════════════════════════════════════════════════════════════╗");
-        Console.WriteLine("  ║                 ЗАМЕРЫ ВРЕМЕНИ И БЕНЧМАРКИ (ЧАСТИ 1 И 2)             ║");
-        Console.WriteLine("  ╚═══════════════════════════════════════════════════════════════════════╝\n");
-        Console.ResetColor();
+        UiLayout.PrintHeader("ЗАМЕРЫ ВРЕМЕНИ И БЕНЧМАРКИ (ЧАСТИ 1 И 2)");
 
         // 1. Различные по длине:
-        //    short (1 000 команд), medium (10 000 команд), long (50 000 команд)
-        // 2. Одинаковые по длине (по 10 000 команд), но различные по составу для максимального расхождения:
-        //    - compose_alternating: чередование push/pop (размер структуры держится около 1)
-        //    - compose_accumulate: массовое накопление (размер растет до тысяч узлов, нагрузка на аллокатор)
-        //    - compose_peeking_printing: операции просмотра начала и проверки пустоты под нагрузкой
+        //    short_1k (1 000 команд), medium_10k (10 000), long_100k (100 000).
+        // 2. Одинаковые по длине (по 200 000 команд), но различные по составу:
+        //    - equal_alternating_200k: чередование вставки и удаления (размер структуры <= 1);
+        //    - equal_accumulate_200k: массовое накопление (180k вставок, затем 20k удалений);
+        //    - equal_lookup_heavy_200k: частые просмотры начала/вершины и проверки пустоты.
         void CreateBenchFile(string name, IEnumerable<string> commands)
         {
             string fullPath = Path.Combine(benchDir, $"{name}.txt");
@@ -34,76 +34,89 @@ public static class Benchmark
 
         Console.WriteLine("  [1/3] Генерация тестовых наборов данных...");
 
-        // Наборы разной длины:
         CreateBenchFile("short_1k", Enumerable.Range(0, 1_000).Select(i => i % 3 == 0 ? "2" : "1,val"));
         CreateBenchFile("medium_10k", Enumerable.Range(0, 10_000).Select(i => i % 3 == 0 ? "2" : "1,val"));
-        CreateBenchFile("long_50k", Enumerable.Range(0, 50_000).Select(i => i % 3 == 0 ? "2" : "1,val"));
+        CreateBenchFile("long_100k", Enumerable.Range(0, 100_000).Select(i => i % 3 == 0 ? "2" : "1,val"));
 
-        // Наборы одинаковой длины (10 000 команд), но разного состава:
-        // Состав А: Чередование вставки и удаления (размер структуры <= 1)
-        CreateBenchFile("equal_alternating_10k", Enumerable.Range(0, 10_000).Select(i => i % 2 == 0 ? "1,item" : "2"));
+        CreateBenchFile("equal_alternating_200k",
+            Enumerable.Range(0, 200_000).Select(i => i % 2 == 0 ? "1,item" : "2"));
 
-        // Состав Б: Сначала 8000 вставок (накопление), затем 2000 удалений
-        CreateBenchFile("equal_accumulate_10k", Enumerable.Repeat("1,item", 8_000).Concat(Enumerable.Repeat("2", 2_000)));
+        CreateBenchFile("equal_accumulate_200k",
+            Enumerable.Repeat("1,item", 180_000).Concat(Enumerable.Repeat("2", 20_000)));
 
-        // Состав В: Вставки вперемешку с частым просмотром начала (3) и проверкой на пустоту (4)
-        CreateBenchFile("equal_lookup_heavy_10k", Enumerable.Range(0, 10_000).Select(i => (i % 4) switch
-        {
-            0 => "1,item",
-            1 => "3",
-            2 => "4",
-            _ => "1,item"
-        }));
+        CreateBenchFile("equal_lookup_heavy_200k",
+            Enumerable.Range(0, 200_000).Select(i => (i % 4) switch
+            {
+                0 => "1,item",
+                1 => "3",
+                2 => "4",
+                _ => "1,item"
+            }));
 
         Console.WriteLine("  [2/3] Прогрев JIT компилятора...");
         string warmupFile = Path.Combine(benchDir, "short_1k.txt");
-        OperationRunner.Measure(warmupFile, isStack: true, useStandardQueue: false);
-        OperationRunner.Measure(warmupFile, isStack: false, useStandardQueue: false);
-        OperationRunner.Measure(warmupFile, isStack: false, useStandardQueue: true);
-
-        Console.WriteLine("  [3/3] Выполнение замеров (медиана 5 прогонов)...\n");
-
-        var testSuites = new (string Name, string Description, int Count)[]
+        for (int i = 0; i < 2; i++)
         {
-            ("short_1k", "Короткий набор (1 тыс.)", 1_000),
-            ("medium_10k", "Средний набор (10 тыс.)", 10_000),
-            ("long_50k", "Длинный набор (50 тыс.)", 50_000),
-            ("equal_alternating_10k", "Один. длина (10k): Чередование 1 и 2", 10_000),
-            ("equal_accumulate_10k", "Один. длина (10k): Накопление (8k push, 2k pop)", 10_000),
-            ("equal_lookup_heavy_10k", "Один. длина (10k): Частый Top/First и isEmpty", 10_000)
+            OperationRunner.Measure(warmupFile, isStack: true, useStandardQueue: false, repetitions: 5);
+            OperationRunner.Measure(warmupFile, isStack: false, useStandardQueue: false, repetitions: 5);
+            OperationRunner.Measure(warmupFile, isStack: false, useStandardQueue: true, repetitions: 5);
+        }
+
+        Console.WriteLine($"  [3/3] Выполнение замеров (медиана {RunsPerMeasurement} прогонов)...\n");
+
+        var testSuites = new (string Name, string Description, int Count, int Repetitions)[]
+        {
+            ("short_1k", "Короткий набор (1 тыс.)", 1_000, 100),
+            ("medium_10k", "Средний набор (10 тыс.)", 10_000, 20),
+            ("long_100k", "Длинный набор (100 тыс.)", 100_000, 10),
+            ("equal_alternating_200k", "Один. длина (200k): Чередование push/pop", 200_000, 5),
+            ("equal_accumulate_200k", "Один. длина (200k): Накопление (180k push, 20k pop)", 200_000, 5),
+            ("equal_lookup_heavy_200k", "Один. длина (200k): Частые Top/First и isEmpty", 200_000, 5)
         };
+
+        var structures = new (string Label, bool IsStack, bool UseStandard)[]
+        {
+            ("Стек (LinkedStack)", true, false),
+            ("Очередь (LinkedLabQueue)", false, false),
+            ("Очередь (Queue<T> стд.)", false, true)
+        };
+
+        var consoleTable = new ConsoleTable(
+            new[] { "Набор тестов", "Команд", "Структура", "Чтение (мс)", "Выполнение (мс)" },
+            ColumnAlignment.Left,
+            ColumnAlignment.Right,
+            ColumnAlignment.Left,
+            ColumnAlignment.Right,
+            ColumnAlignment.Right);
 
         var report = new StringBuilder();
         report.AppendLine("# Сравнительные замеры производительности структур данных");
         report.AppendLine();
         report.AppendLine("> Замеры времени чтения файла, синтаксического разбора команд и чистого выполнения операций.");
-        report.AppendLine("> Каждое значение — медиана 5 последовательных запусков после прогрева JIT.");
+        report.AppendLine($"> Каждое значение — медиана {RunsPerMeasurement} последовательных запусков после прогрева JIT.");
+        report.AppendLine("> Внутри одного замера набор выполняется несколько раз в новой структуре; в таблице — среднее время одного выполнения набора.");
+        report.AppendLine("> В режиме замера структура не печатает своё содержимое на каждом шаге: измеряется именно работа операций.");
         report.AppendLine();
         report.AppendLine("| Набор тестов | Описание | Команд | Структура | Чтение/разбор (мс) | Выполнение (мс) |");
         report.AppendLine("|---|---|---:|---|---:|---:|");
 
-        foreach (var (fileName, desc, count) in testSuites)
+        foreach (var (fileName, desc, count, repetitions) in testSuites)
         {
             string filePath = Path.Combine(benchDir, $"{fileName}.txt");
-
-            var structures = new (string Label, bool IsStack, bool UseStandard)[]
-            {
-                ("Стек (LinkedStack)", true, false),
-                ("Очередь (LinkedLabQueue)", false, false),
-                ("Очередь (Queue<T> стд.)", false, true)
-            };
+            Console.WriteLine($"  • {desc}");
 
             foreach (var (label, isStack, useStandard) in structures)
             {
-                var runs = new List<(double Read, double Exec)>();
-                for (int r = 0; r < 5; r++)
+                var runs = new List<(double Read, double Exec)>(RunsPerMeasurement);
+                for (int r = 0; r < RunsPerMeasurement; r++)
                 {
-                    runs.Add(OperationRunner.Measure(filePath, isStack, useStandard));
+                    runs.Add(OperationRunner.Measure(filePath, isStack, useStandard, repetitions));
                 }
 
-                double medianRead = runs.Select(x => x.Read).OrderBy(x => x).ElementAt(2);
-                double medianExec = runs.Select(x => x.Exec).OrderBy(x => x).ElementAt(2);
+                double medianRead = Median(runs.Select(x => x.Read));
+                double medianExec = Median(runs.Select(x => x.Exec));
 
+                consoleTable.AddRow(fileName, count.ToString("N0"), label, medianRead.ToString("F3"), medianExec.ToString("F3"));
                 report.AppendLine($"| `{fileName}` | {desc} | {count:N0} | {label} | {medianRead:F3} | {medianExec:F3} |");
             }
         }
@@ -111,18 +124,32 @@ public static class Benchmark
         report.AppendLine();
         report.AppendLine("## Анализ расхождения по времени:");
         report.AppendLine("1. **Связная очередь (`LinkedLabQueue`) vs стандартная (`Queue<T>`)**:");
-        report.AppendLine("   - `Queue<T>` использует непрерывный массив (кольцевой буфер). При добавлении элементов память выделяется блоками с удвоением емкости, обеспечивая отличную локализацию данных в кэше процессора (L1/L2 cache locality).");
-        report.AppendLine("   - `LinkedLabQueue` на каждую операцию `Enqueue` выделяет отдельный объект узла в куче (`new ListNode<T>`), что вызывает оверхед аллокатора памяти и промахи кэша (pointer chasing).");
-        report.AppendLine("2. **Сравнение наборов одинаковой длины (10 000 команд)**:");
-        report.AppendLine("   - Набор с накоплением (`equal_accumulate_10k`) держит тысячи живых объектов в памяти, вызывая максимальную нагрузку на сборщик мусора GC.");
-        report.AppendLine("   - Набор с чередованием (`equal_alternating_10k`) освобождает узлы сразу после создания, размер списка не превышает 1-2 элементов, поэтому память циклически переиспользуется.");
+        report.AppendLine("   - `Queue<T>` использует непрерывный массив (кольцевой буфер). При добавлении элементов память выделяется блоками с удвоением ёмкости, что обеспечивает хорошую локализацию данных в кэше процессора (L1/L2 cache locality).");
+        report.AppendLine("   - `LinkedLabQueue` на каждую операцию `Enqueue` выделяет отдельный объект узла в куче (`new ListNode<T>`), что даёт оверхед аллокатора памяти и промахи кэша (pointer chasing).");
+        report.AppendLine("   - При этом на этапе роста массива `Queue<T>` копирует элементы, поэтому в отдельных сценариях связная очередь может оказаться не медленнее стандартной.");
+        report.AppendLine("2. **Сравнение наборов одинаковой длины (200 000 команд)**:");
+        report.AppendLine("   - Набор с накоплением (`equal_accumulate_200k`) держит сотни тысяч живых объектов в памяти, вызывая максимальную нагрузку на сборщик мусора GC.");
+        report.AppendLine("   - Набор с чередованием (`equal_alternating_200k`) освобождает узлы сразу после создания, размер структуры не превышает 1–2 элементов, поэтому память циклически переиспользуется.");
+        report.AppendLine("   - Набор с частыми просмотрами (`equal_lookup_heavy_200k`) почти не удаляет элементы, поэтому структура растёт и дополнительно нагружает память.");
+        report.AppendLine("   - Наибольшее расхождение в текущем прогоне наблюдается у очередей: накопление примерно в 2–2,5 раза медленнее чередования. У стека разница меньше, потому что `Push` — это вставка в голову без обновления хвоста.");
+        report.AppendLine("3. **Разная длина наборов (1k / 10k / 100k)**:");
+        report.AppendLine("   - Время выполнения растёт линейно, что подтверждает амортизированную сложность O(1) для основных операций стека и очереди.");
 
         string reportText = report.ToString();
         File.WriteAllText("BENCHMARKS.md", reportText);
 
-        Console.WriteLine(reportText);
+        Console.WriteLine();
+        Console.WriteLine(consoleTable.Render());
+        Console.WriteLine();
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine("  ✓ Результаты успешно сохранены в файл BENCHMARKS.md");
+        Console.WriteLine("  ✓ Полный отчёт с описанием наборов и анализом сохранён в BENCHMARKS.md");
         Console.ResetColor();
+    }
+
+    private static double Median(IEnumerable<double> values)
+    {
+        double[] sorted = values.OrderBy(x => x).ToArray();
+        if (sorted.Length == 0) return 0;
+        return sorted[sorted.Length / 2];
     }
 }

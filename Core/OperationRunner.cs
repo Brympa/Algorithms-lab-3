@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Text;
+using AlgorithmsLab3.UI;
 
 namespace AlgorithmsLab3.Core;
 
@@ -55,19 +55,26 @@ public static class OperationRunner
 
     /// <summary>
     /// Выполнение команд для Стека с наглядным выводом протокола.
+    /// Если log равен null, выполняется только «чистое» исполнение без
+    /// форматирования строк — именно этот режим используется в бенчмарке.
     /// </summary>
     public static void RunStack(OperationCommand[] commands, Action<string>? log = null)
     {
-        var stack = new LinkedStack<string>();
-        int step = 1;
-
-        if (log != null)
+        if (log is null)
         {
-            log("  ┌──────┬──────────────┬──────────────────┬───────────────────────────────────────────┐");
-            log("  │ Шаг  │ Команда      │ Операция         │ Результат и состояние стека               │");
-            log("  ├──────┼──────────────┼──────────────────┼───────────────────────────────────────────┤");
+            ExecuteStack(commands);
+            return;
         }
 
+        var stack = new LinkedStack<string>();
+        var table = new ConsoleTable(
+            new[] { "Шаг", "Команда", "Операция", "Результат и состояние стека" },
+            ColumnAlignment.Right,
+            ColumnAlignment.Left,
+            ColumnAlignment.Left,
+            ColumnAlignment.Left);
+
+        int step = 1;
         foreach (var cmd in commands)
         {
             string opName;
@@ -122,39 +129,40 @@ public static class OperationRunner
                     break;
             }
 
-            if (log != null)
-            {
-                log($"  │ {step,4} │ {cmd.RawToken,-12} │ {opName,-16} │ {details,-41} │");
-            }
+            table.AddRow(step.ToString(), cmd.RawToken, opName, details);
             step++;
         }
 
-        if (log != null)
-        {
-            log("  └──────┴──────────────┴──────────────────┴───────────────────────────────────────────┘");
-        }
+        log(table.Render());
     }
 
     /// <summary>
     /// Выполнение команд для Очереди (своей или стандартной) с наглядным выводом протокола.
+    /// Если log равен null, выполняется только «чистое» исполнение без форматирования строк.
     /// </summary>
     public static void RunQueue(OperationCommand[] commands, bool useStandardQueue, Action<string>? log = null)
     {
+        if (log is null)
+        {
+            ExecuteQueue(commands, useStandardQueue);
+            return;
+        }
+
         ILabQueue<string> queue = useStandardQueue
             ? new StandardLabQueue<string>()
             : new LinkedLabQueue<string>();
 
         string queueType = useStandardQueue ? "Queue<T> (стандартная)" : "LinkedLabQueue (на списке)";
+        var table = new ConsoleTable(
+            new[] { "Шаг", "Команда", "Операция", "Результат и состояние очереди" },
+            ColumnAlignment.Right,
+            ColumnAlignment.Left,
+            ColumnAlignment.Left,
+            ColumnAlignment.Left);
+
+        log($"  Реализация: {queueType}");
+
         int step = 1;
-
-        if (log != null)
-        {
-            log($"  Реализация: {queueType}");
-            log("  ┌──────┬──────────────┬──────────────────┬───────────────────────────────────────────┐");
-            log("  │ Шаг  │ Команда      │ Операция         │ Результат и состояние очереди             │");
-            log("  ├──────┼──────────────┼──────────────────┼───────────────────────────────────────────┤");
-        }
-
         foreach (var cmd in commands)
         {
             string opName;
@@ -209,42 +217,128 @@ public static class OperationRunner
                     break;
             }
 
-            if (log != null)
-            {
-                log($"  │ {step,4} │ {cmd.RawToken,-12} │ {opName,-16} │ {details,-41} │");
-            }
+            table.AddRow(step.ToString(), cmd.RawToken, opName, details);
             step++;
         }
 
-        if (log != null)
+        log(table.Render());
+    }
+
+    /// <summary>
+    /// «Чистое» выполнение команд стеком — без построения строк протокола.
+    /// </summary>
+    private static void ExecuteStack(OperationCommand[] commands)
+    {
+        var stack = new LinkedStack<string>();
+
+        foreach (var cmd in commands)
         {
-            log("  └──────┴──────────────┴──────────────────┴───────────────────────────────────────────┘");
+            switch (cmd.Code)
+            {
+                case 1:
+                    stack.Push(cmd.Value!);
+                    break;
+                case 2:
+                    if (!stack.isEmpty()) stack.Pop();
+                    break;
+                case 3:
+                    if (!stack.isEmpty()) _ = stack.Top();
+                    break;
+                case 4:
+                    _ = stack.isEmpty();
+                    break;
+                case 5:
+                    _ = stack.Print();
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// «Чистое» выполнение команд очередью — без построения строк протокола.
+    /// </summary>
+    private static void ExecuteQueue(OperationCommand[] commands, bool useStandardQueue)
+    {
+        ILabQueue<string> queue = useStandardQueue
+            ? new StandardLabQueue<string>()
+            : new LinkedLabQueue<string>();
+
+        foreach (var cmd in commands)
+        {
+            switch (cmd.Code)
+            {
+                case 1:
+                    queue.Enqueue(cmd.Value!);
+                    break;
+                case 2:
+                    if (!queue.isEmpty()) queue.Dequeue();
+                    break;
+                case 3:
+                    if (!queue.isEmpty()) _ = queue.First();
+                    break;
+                case 4:
+                    _ = queue.isEmpty();
+                    break;
+                case 5:
+                    _ = queue.Print();
+                    break;
+            }
         }
     }
 
     /// <summary>
     /// Замер времени чтения/разбора и чистого выполнения без вывода в консоль (по ТЗ).
+    /// В режиме замера НЕ вызывается Print() для каждой команды и не строятся
+    /// строки таблицы, поэтому время отражает именно работу структуры данных.
+    ///
+    /// <paramref name="repetitions"/> позволяет выполнить один и тот же набор
+    /// несколько раз подряд (каждый раз в новой структуре). Это нужно для
+    /// устойчивых замеров очень быстрых операций: возвращается СРЕДНЕЕ время
+    /// одного выполнения набора. Для одиночного замера используется 1.
     /// </summary>
-    public static (double ReadMs, double ExecuteMs) Measure(string path, bool isStack, bool useStandardQueue)
+    public static (double ReadMs, double ExecuteMs) Measure(
+        string path,
+        bool isStack,
+        bool useStandardQueue,
+        int repetitions = 1)
     {
+        if (repetitions < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(repetitions), "Количество повторов должно быть не меньше 1.");
+        }
+
         var sw = Stopwatch.StartNew();
         string text = File.ReadAllText(path);
         var commands = Parse(text);
         sw.Stop();
         double readMs = sw.Elapsed.TotalMilliseconds;
 
-        sw.Restart();
-        if (isStack)
+        double totalMs = 0;
+        for (int i = 0; i < repetitions; i++)
         {
-            RunStack(commands, log: null);
-        }
-        else
-        {
-            RunQueue(commands, useStandardQueue, log: null);
-        }
-        sw.Stop();
-        double executeMs = sw.Elapsed.TotalMilliseconds;
+            sw.Restart();
+            if (isStack)
+            {
+                ExecuteStack(commands);
+            }
+            else
+            {
+                ExecuteQueue(commands, useStandardQueue);
+            }
+            sw.Stop();
+            totalMs += sw.Elapsed.TotalMilliseconds;
 
-        return (readMs, executeMs);
+            // Перед следующим повтором очищаем кучу, чтобы предыдущая
+            // структура не влияла на замер следующей. Это время не входит
+            // в измеряемое выполнение.
+            if (i + 1 < repetitions)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+            }
+        }
+
+        return (readMs, totalMs / repetitions);
     }
 }
